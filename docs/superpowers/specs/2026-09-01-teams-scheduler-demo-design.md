@@ -3,49 +3,88 @@
 Source spec: `teams-scheduling-spec-delegated.md`. Goal: working end-to-end demo by 7pm today, implementing the full delegated-permissions workflow (steps 1-5), single Azure App Registration, local-only hosting.
 
 ## Stack
-- Backend: Node.js + Express (plain JS, no TypeScript — speed priority)
-- ORM/DB: Prisma on existing PostgreSQL/pgAdmin instance
+- Backend: Node.js + TypeScript + Express, following the **vms-backend** pattern (`../VMS/vms-backend`): module-per-feature folders (`entity/service/controller/routes/dto`), path aliases (`@modules/...`), abstract `BaseEntity`, migrations.
+- ORM/DB: TypeORM (`DataSource`, `postgres` driver) on existing PostgreSQL/pgAdmin instance — replicates `vms-backend/src/config/database.ts` structure.
 - Frontend: React (Vite) — two views: visitor booking form, staff/admin dashboard
 - Auth: MSAL Node, authorization-code flow, `common` endpoint (multi-tenant + personal accounts per spec §2)
 - Hosting: local only. Redirect URI: `http://localhost:5000/auth/staff/callback`
 
-## Data Model (Prisma schema)
+## Project Structure (mirrors vms-backend)
 
 ```
-Organization
-  id            Int    @id @default(autoincrement())
-  name          String
-  domain        String @unique
-
-Staff
-  id                Int      @id @default(autoincrement())
-  orgId             Int
-  organization      Organization @relation(fields: [orgId], references: [id])
-  email             String   @unique
-  refreshTokenEnc   String?  // AES-256-GCM encrypted
-  accessToken       String?
-  tokenExpiresAt    DateTime?
-  accountType       String   // enterprise | small_business | personal
-  connected         Boolean  @default(false)
-
-Booking
-  id              Int      @id @default(autoincrement())
-  visitorEmail    String
-  visitorName     String
-  requestedStart  DateTime
-  requestedEnd    DateTime
-  status          String   // Requested | Scheduled | Rescheduled | Swapped | Cancelled
-  staffId         Int?
-  staff           Staff?   @relation(fields: [staffId], references: [id])
-  msEventId       String?
-  joinUrl         String?
-  cancelledAt     DateTime?
-  cancelledBy     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+src/
+  config/
+    env.ts
+    database.ts        // TypeORM DataSource, entities list, migrations glob
+  shared/
+    base.entity.ts      // abstract: uuid PK, createdAt, updatedAt, deletedAt (soft delete)
+    crypto.ts            // AES-256-GCM helpers for refresh_token encryption
+    graph-client.ts      // shared axios wrapper for Graph calls, 429/401/404 handling
+  modules/
+    organization/
+      organization.entity.ts
+      organization.service.ts
+    staff/
+      staff.entity.ts
+      staff.service.ts
+      staff.controller.ts
+      staff.routes.ts
+    auth/
+      auth.controller.ts   // OAuth login/callback
+      auth.routes.ts
+      token.service.ts     // refresh flow, spec §3B
+    booking/
+      booking.entity.ts
+      booking.service.ts   // availability/create/reschedule/cancel/swap, spec §4
+      booking.controller.ts
+      booking.routes.ts
+      booking.dto.ts
+  database/
+    migrations/
+  app.ts
+  server.ts
 ```
 
-`Organization` is an addition beyond the source spec's table — needed so swap-host (spec §4 Step 5) can be restricted to staff within the same org, while still supporting multiple orgs in one deployment ("works for all organizations").
+## Data Model (TypeORM entities, extend `BaseEntity`)
+
+```ts
+// organization.entity.ts
+@Entity()
+class Organization extends BaseEntity {
+  @Column() name: string;
+  @Column({ unique: true }) domain: string;
+  @OneToMany(() => Staff, (s) => s.organization) staff: Staff[];
+}
+
+// staff.entity.ts
+@Entity()
+class Staff extends BaseEntity {
+  @ManyToOne(() => Organization, (o) => o.staff) organization: Organization;
+  @Column({ unique: true }) email: string;
+  @Column({ nullable: true }) refreshTokenEnc: string | null;
+  @Column({ nullable: true }) accessToken: string | null;
+  @Column({ type: 'timestamptz', nullable: true }) tokenExpiresAt: Date | null;
+  @Column() accountType: string; // enterprise | small_business | personal
+  @Column({ default: false }) connected: boolean;
+}
+
+// booking.entity.ts
+@Entity()
+class Booking extends BaseEntity {
+  @Column() visitorEmail: string;
+  @Column() visitorName: string;
+  @Column({ type: 'timestamptz' }) requestedStart: Date;
+  @Column({ type: 'timestamptz' }) requestedEnd: Date;
+  @Column() status: string; // Requested | Scheduled | Rescheduled | Swapped | Cancelled
+  @ManyToOne(() => Staff, { nullable: true }) staff: Staff | null;
+  @Column({ nullable: true }) msEventId: string | null;
+  @Column({ nullable: true }) joinUrl: string | null;
+  @Column({ type: 'timestamptz', nullable: true }) cancelledAt: Date | null;
+  @Column({ nullable: true }) cancelledBy: string | null;
+}
+```
+
+`Organization` is an addition beyond the source spec's table — needed so swap-host (spec §4 Step 5) can be restricted to staff within the same org, while still supporting multiple orgs in one deployment ("works for all organizations"). `id` fields are uuid (matches `BaseEntity` from vms-backend) rather than the spec's implicit auto-increment — no functional difference, matches replicated pattern.
 
 ## Auth Flow
 1. Staff clicks "Connect" on admin dashboard → redirected to Microsoft OAuth consent (`/authorize` via MSAL, `common` endpoint, scopes: `offline_access Calendars.ReadWrite OnlineMeetings.ReadWrite User.Read`).
