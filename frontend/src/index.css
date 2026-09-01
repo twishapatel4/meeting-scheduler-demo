@@ -1,0 +1,193 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2937;
+  background: #f5f6f8;
+}
+
+a {
+  color: #2563eb;
+}
+
+.app-nav {
+  padding: 12px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e5ea;
+}
+
+.app-nav a {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.app-nav a:hover {
+  text-decoration: underline;
+}
+
+.page {
+  max-width: 960px;
+  margin: 40px auto;
+  padding: 0 20px 40px;
+}
+
+.visitor-page {
+  max-width: 520px;
+}
+
+h1 {
+  margin-bottom: 8px;
+}
+
+h2 {
+  margin-top: 32px;
+  margin-bottom: 12px;
+}
+
+/* Bookings table */
+.bookings-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.bookings-table th,
+.bookings-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid #e2e5ea;
+  vertical-align: top;
+}
+
+.bookings-table th {
+  background: #eef1f6;
+  font-weight: 600;
+}
+
+.bookings-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.bookings-table td.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Buttons */
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: #ffffff;
+  transition: opacity 0.15s ease;
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+.btn-schedule {
+  background: #2563eb;
+}
+
+.btn-reschedule {
+  background: #6b7280;
+}
+
+.btn-cancel {
+  background: #f97316;
+}
+
+.btn-delete {
+  background: #dc2626;
+}
+
+.btn-swap {
+  background: #7c3aed;
+}
+
+/* Forms */
+.booking-form {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.form-field {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.form-field input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.form-field input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.status-message {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: #eef1f6;
+  border-radius: 5px;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 420px;
+}
+
+.modal h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-save {
+  background: #2563eb;
+}
+
+.btn-cancel-modal {
+  background: #6b7280;
+}
