@@ -42,3 +42,15 @@ and delegated scopes `offline_access Calendars.ReadWrite OnlineMeetings.ReadWrit
    on the next `GET /api/v1/staff` call.
 
 Record pass/fail for each step; any failure blocks calling the demo done.
+
+## Results — run against real Azure App Registration + personal MSA (2026-09-01)
+
+- **Step 1 (Connect staff):** PASS — real OAuth consent completed with `twisha0415@gmail.com` (personal Microsoft account), staff record created, `connected: true`.
+- **Step 2 (Visitor request):** PASS — booking appears with status "Requested".
+- **Step 3 (Schedule):** PARTIAL PASS — event created on the real Outlook calendar (`msEventId` populated, verified live via Graph), status flips to "Scheduled". **`joinUrl` stays `null`** — confirmed root cause via direct Graph query: `isOnlineMeeting: false`, `onlineMeeting: null` on the created event. **This is a Microsoft platform limitation, not an app defect**: `onlineMeetingProvider: 'teamsForBusiness'` is only honored by Graph for work/school (Azure AD) accounts; personal Microsoft accounts (consumer MSAs) get a plain calendar event with no Teams link, regardless of what the request sends. Attempted to provision a Microsoft 365 Developer Program sandbox tenant to test with a real work/school account — sandbox signup failed ("don't currently qualify") across three different Microsoft accounts (work, personal, and a techeniac.com-aliased account), a known/reported issue with Microsoft's current sandbox eligibility checks unrelated to this app. **Follow-up:** re-test Step 3 with any real Microsoft 365/Entra ID work or school account once available — expect `joinUrl` to populate correctly per spec.
+- **Step 4 (Reschedule):** PASS — verified via UI modal (subject + start/end editable) and direct API call; Graph event's time and subject both updated, status → "Rescheduled".
+- **Step 5 (Cancel):** PASS — status → "Cancelled", event removed from Outlook.
+- **Delete (not in original spec's numbered steps, added via UI):** PASS — hard-removes the booking row after cancelling the Graph event (fixed during testing: originally soft-cancelled instead of removing, corrected to `repo.remove()`).
+- **Steps 6-8 (Swap host, cross-org rejection, disconnected-staff handling):** NOT YET RUN — require a second/third staff account, ideally in a real organizational tenant, which wasn't available today (see Step 3 note above). Swap-host code path and the same-organization guard (`assertSameOrganization`) are unit-tested and reviewed; UI now has a proper staff-picker dropdown (added during testing) rather than a hardcoded target.
+
+**Bugs found and fixed live during this test run** (all verified against the running app afterward): `DELETE` endpoint returned HTTP 204 with a JSON body (illegal per HTTP spec, broke the frontend's `response.json()`) — changed to 200; `deleteHard` only soft-cancelled instead of removing the row — changed to a real delete; `GET /api/v1/staff` and every booking response leaked each staff member's encrypted refresh token and raw access token to the browser — added a `sanitizeStaff`/`sanitizeBooking` layer stripping both fields from every response.

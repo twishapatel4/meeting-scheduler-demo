@@ -6,6 +6,7 @@ export function VisitorBookingPage() {
   const [visitorEmail, setVisitorEmail] = useState('');
   const [requestedStart, setRequestedStart] = useState('');
   const [requestedEnd, setRequestedEnd] = useState('');
+  const [subject, setSubject] = useState('');
   const [status, setStatus] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
@@ -15,6 +16,7 @@ export function VisitorBookingPage() {
       visitorEmail,
       requestedStart: new Date(requestedStart).toISOString(),
       requestedEnd: new Date(requestedEnd).toISOString(),
+      subject: subject.trim() || undefined,
     });
     setStatus(result.success ? 'Request submitted — we will confirm shortly.' : result.message);
   };
@@ -34,6 +36,14 @@ export function VisitorBookingPage() {
             value={visitorEmail}
             onChange={(e) => setVisitorEmail(e.target.value)}
             required
+          />
+        </div>
+        <div className="form-field">
+          <label>Meeting subject</label>
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="What's this about?"
           />
         </div>
         <div className="form-field">

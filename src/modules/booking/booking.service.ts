@@ -5,6 +5,7 @@ import { createGraphClient } from '@shared/graph-client';
 import { GraphNotFoundError } from '@shared/errors/GraphNotFoundError';
 import { NotFoundError } from '@shared/errors/NotFoundError';
 import { BadRequestError } from '@shared/errors/BadRequestError';
+import { ConflictError } from '@shared/errors/ConflictError';
 import { logger } from '@shared/utils/logger';
 import { Booking } from './booking.entity';
 import { StaffService } from '@modules/staff/staff.service';
@@ -15,6 +16,7 @@ interface VisitorRequestInput {
   visitorName: string;
   requestedStart: Date;
   requestedEnd: Date;
+  subject?: string;
 }
 
 @Service()
@@ -69,16 +71,21 @@ export class BookingService {
   }
 
   // spec §4 Step 2
-  async createBooking(bookingId: string, staffId: string, subject: string): Promise<Booking> {
+  async createBooking(bookingId: string, staffId: string, subject?: string): Promise<Booking> {
     const booking = await this.findOrThrow(bookingId);
+    if (booking.status !== 'Requested') {
+      throw new ConflictError('Booking has already been scheduled');
+    }
     const staff = await this.staffService.findById(staffId);
     if (!staff) throw new NotFoundError('Staff not found');
 
     const accessToken = await this.tokenService.getValidAccessToken(staffId);
     const graph = createGraphClient(accessToken);
 
+    const resolvedSubject = subject ?? booking.subject;
+
     const response = await graph.post('/me/events', {
-      subject,
+      subject: resolvedSubject,
       body: { contentType: 'HTML', content: 'Discussion about organization inquiry.' },
       start: { dateTime: booking.requestedStart.toISOString().replace('Z', ''), timeZone: 'UTC' },
       end: { dateTime: booking.requestedEnd.toISOString().replace('Z', ''), timeZone: 'UTC' },
@@ -90,7 +97,7 @@ export class BookingService {
     });
 
     booking.staff = staff;
-    booking.subject = subject;
+    booking.subject = resolvedSubject;
     booking.msEventId = response.data.id;
     booking.joinUrl = response.data.onlineMeeting?.joinUrl ?? null;
     booking.status = 'Scheduled';

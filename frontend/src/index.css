@@ -145,11 +145,30 @@ h2 {
   outline-offset: 1px;
 }
 
+.form-field select {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font-size: 1rem;
+  background: #ffffff;
+}
+
+.form-field select:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
 .status-message {
   margin-top: 16px;
   padding: 10px 12px;
   background: #eef1f6;
   border-radius: 5px;
+}
+
+.form-hint {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #6b7280;
 }
 
 /* Modal */

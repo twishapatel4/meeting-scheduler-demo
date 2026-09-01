@@ -45,6 +45,14 @@ export function AdminDashboardPage() {
   const [rescheduleSubject, setRescheduleSubject] = useState('');
   const [rescheduleStart, setRescheduleStart] = useState('');
   const [rescheduleEnd, setRescheduleEnd] = useState('');
+  const [swapTarget, setSwapTarget] = useState<Booking | null>(null);
+  const [selectedSwapStaffId, setSelectedSwapStaffId] = useState('');
+  const [scheduleTarget, setScheduleTarget] = useState<Booking | null>(null);
+  const [selectedScheduleStaffId, setSelectedScheduleStaffId] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [isSavingReschedule, setIsSavingReschedule] = useState(false);
+  const [isSavingSwap, setIsSavingSwap] = useState(false);
 
   const refresh = async () => {
     const staffRes = await apiGet('/api/v1/staff');
@@ -57,22 +65,39 @@ export function AdminDashboardPage() {
     refresh();
   }, []);
 
-  const scheduleFor = async (bookingId: string, staffId: string) => {
-    await apiPost('/api/v1/bookings', { bookingId, staffId, subject: 'SaaS Intro Meeting' });
+  const scheduleFor = async (bookingId: string, staffId: string): Promise<boolean> => {
+    const result = await apiPost('/api/v1/bookings', { bookingId, staffId });
+    if (!result.success) {
+      setErrorMessage(result.message);
+      return false;
+    }
+    setErrorMessage(null);
     refresh();
+    return true;
   };
 
   const cancelBooking = async (bookingId: string) => {
-    await apiPost(`/api/v1/bookings/${bookingId}/cancel`, {
+    const result = await apiPost(`/api/v1/bookings/${bookingId}/cancel`, {
       comment: 'Apologies, this meeting has been cancelled.',
       cancelledBy: 'admin',
     });
+    if (!result.success) {
+      setErrorMessage(result.message);
+      return;
+    }
+    setErrorMessage(null);
     refresh();
   };
 
-  const swapHost = async (bookingId: string, newStaffId: string) => {
-    await apiPost(`/api/v1/bookings/${bookingId}/swap`, { newStaffId });
+  const swapHost = async (bookingId: string, newStaffId: string): Promise<boolean> => {
+    const result = await apiPost(`/api/v1/bookings/${bookingId}/swap`, { newStaffId });
+    if (!result.success) {
+      setErrorMessage(result.message);
+      return false;
+    }
+    setErrorMessage(null);
     refresh();
+    return true;
   };
 
   const reschedule = (booking: Booking) => {
@@ -86,20 +111,65 @@ export function AdminDashboardPage() {
     setRescheduleTarget(null);
   };
 
+  const swapCandidates = (booking: Booking) =>
+    staff.filter(
+      (s) =>
+        s.id !== booking.staff?.id &&
+        s.connected &&
+        s.organization?.id === booking.staff?.organization?.id
+    );
+
+  const openSwap = (booking: Booking) => {
+    const otherStaff = swapCandidates(booking);
+    setSwapTarget(booking);
+    setSelectedSwapStaffId(otherStaff[0]?.id ?? '');
+  };
+
+  const cancelSwap = () => {
+    setSwapTarget(null);
+  };
+
+  const saveSwap = async () => {
+    if (!swapTarget || !selectedSwapStaffId || isSavingSwap) return;
+    setIsSavingSwap(true);
+    try {
+      const ok = await swapHost(swapTarget.id, selectedSwapStaffId);
+      if (!ok) return;
+      setSwapTarget(null);
+    } finally {
+      setIsSavingSwap(false);
+    }
+  };
+
   const saveReschedule = async () => {
-    if (!rescheduleTarget) return;
-    await apiPatch(`/api/v1/bookings/${rescheduleTarget.id}`, {
-      newStart: new Date(rescheduleStart).toISOString(),
-      newEnd: new Date(rescheduleEnd).toISOString(),
-      subject: rescheduleSubject,
-    });
-    setRescheduleTarget(null);
-    refresh();
+    if (!rescheduleTarget || isSavingReschedule) return;
+    setIsSavingReschedule(true);
+    try {
+      const result = await apiPatch(`/api/v1/bookings/${rescheduleTarget.id}`, {
+        newStart: new Date(rescheduleStart).toISOString(),
+        newEnd: new Date(rescheduleEnd).toISOString(),
+        subject: rescheduleSubject,
+      });
+      if (!result.success) {
+        setErrorMessage(result.message);
+        return;
+      }
+      setErrorMessage(null);
+      setRescheduleTarget(null);
+      refresh();
+    } finally {
+      setIsSavingReschedule(false);
+    }
   };
 
   const deleteBooking = async (bookingId: string) => {
     if (!confirm('Delete this booking? This cannot be undone.')) return;
-    await apiDelete(`/api/v1/bookings/${bookingId}`);
+    const result = await apiDelete(`/api/v1/bookings/${bookingId}`);
+    if (!result.success) {
+      setErrorMessage(result.message);
+      return;
+    }
+    setErrorMessage(null);
     refresh();
   };
 
@@ -119,6 +189,11 @@ export function AdminDashboardPage() {
       </ul>
 
       <h2>Bookings</h2>
+      {errorMessage && (
+        <div className="status-message" style={{ background: '#fee2e2', color: '#991b1b' }}>
+          {errorMessage}
+        </div>
+      )}
       <table className="bookings-table">
         <thead>
           <tr>
@@ -143,9 +218,15 @@ export function AdminDashboardPage() {
               <td>{b.staff?.email ?? '-'}</td>
               <td>{b.joinUrl ? <a href={b.joinUrl}>Join</a> : '-'}</td>
               <td className="actions">
-                {b.status === 'Requested' && staff.length > 0 && (
-                  <button className="btn btn-schedule" onClick={() => scheduleFor(b.id, staff[0].id)}>
-                    Schedule w/ {staff[0].email}
+                {b.status === 'Requested' && staff.filter((s) => s.connected).length > 0 && (
+                  <button
+                    className="btn btn-schedule"
+                    onClick={() => {
+                      setScheduleTarget(b);
+                      setSelectedScheduleStaffId(staff.filter((s) => s.connected)[0].id);
+                    }}
+                  >
+                    Schedule
                   </button>
                 )}
                 {b.status !== 'Cancelled' && b.status !== 'Requested' && (
@@ -156,9 +237,9 @@ export function AdminDashboardPage() {
                     <button className="btn btn-cancel" onClick={() => cancelBooking(b.id)}>
                       Cancel
                     </button>
-                    {staff.length > 1 && (
-                      <button className="btn btn-swap" onClick={() => swapHost(b.id, staff[1].id)}>
-                        Swap to {staff[1].email}
+                    {swapCandidates(b).length > 0 && (
+                      <button className="btn btn-swap" onClick={() => openSwap(b)}>
+                        Swap
                       </button>
                     )}
                   </>
@@ -203,8 +284,88 @@ export function AdminDashboardPage() {
               <button className="btn btn-cancel-modal" onClick={cancelReschedule}>
                 Cancel
               </button>
-              <button className="btn btn-save" onClick={saveReschedule}>
-                Save
+              <button className="btn btn-save" onClick={saveReschedule} disabled={isSavingReschedule}>
+                {isSavingReschedule ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {swapTarget && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Swap Host</h3>
+            <div className="form-field">
+              <label>New Staff</label>
+              <select
+                value={selectedSwapStaffId}
+                onChange={(e) => setSelectedSwapStaffId(e.target.value)}
+              >
+                {swapCandidates(swapTarget).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.email}
+                  </option>
+                ))}
+              </select>
+              {swapCandidates(swapTarget).length === 0 && (
+                <p className="form-hint">No other staff available in this organization.</p>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-cancel-modal" onClick={cancelSwap}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-save"
+                onClick={saveSwap}
+                disabled={swapCandidates(swapTarget).length === 0 || isSavingSwap}
+              >
+                {isSavingSwap ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {scheduleTarget && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Schedule Meeting</h3>
+            <div className="form-field">
+              <label>Staff</label>
+              <select
+                value={selectedScheduleStaffId}
+                onChange={(e) => setSelectedScheduleStaffId(e.target.value)}
+              >
+                {staff
+                  .filter((s) => s.connected)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.email}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-cancel-modal" onClick={() => setScheduleTarget(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-save"
+                disabled={isSavingSchedule}
+                onClick={async () => {
+                  if (isSavingSchedule) return;
+                  setIsSavingSchedule(true);
+                  try {
+                    const ok = await scheduleFor(scheduleTarget.id, selectedScheduleStaffId);
+                    if (!ok) return;
+                    setScheduleTarget(null);
+                  } finally {
+                    setIsSavingSchedule(false);
+                  }
+                }}
+              >
+                {isSavingSchedule ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>

@@ -12,6 +12,10 @@ export class VisitorRequestDto {
 
   @IsISO8601()
   requestedEnd: string;
+
+  @IsOptional()
+  @IsString()
+  subject?: string;
 }
 
 export class CreateBookingDto {
@@ -21,8 +25,9 @@ export class CreateBookingDto {
   @IsUUID()
   staffId: string;
 
+  @IsOptional()
   @IsString()
-  subject: string;
+  subject?: string;
 }
 
 export class RescheduleDto {

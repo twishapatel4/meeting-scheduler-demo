@@ -35,6 +35,7 @@ export class BookingController {
       visitorName: dto.visitorName,
       requestedStart: new Date(dto.requestedStart),
       requestedEnd: new Date(dto.requestedEnd),
+      subject: dto.subject,
     });
     sendSuccess(res, sanitizeBooking(booking), 'Booking request received', 201);
   };

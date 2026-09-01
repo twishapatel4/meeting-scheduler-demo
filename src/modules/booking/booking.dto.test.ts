@@ -88,13 +88,13 @@ describe('CreateBookingDto', () => {
     expect(errors.some((e) => e.property === 'staffId')).toBe(true);
   });
 
-  it('fails when subject is missing', async () => {
+  it('passes validation when subject is missing (optional, falls back to booking.subject)', async () => {
     const dto = plainToInstance(CreateBookingDto, {
       bookingId: VALID_UUID,
       staffId: VALID_UUID_2,
     });
     const errors = await validate(dto);
-    expect(errors.some((e) => e.property === 'subject')).toBe(true);
+    expect(errors.some((e) => e.property === 'subject')).toBe(false);
   });
 });
 
