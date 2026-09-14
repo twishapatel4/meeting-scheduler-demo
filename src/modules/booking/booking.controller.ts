@@ -19,9 +19,14 @@ function sanitizeBooking(booking: Booking) {
   return { ...booking, staff: booking.staff ? sanitizeStaff(booking.staff) : null };
 }
 
+import { MeetingInsightService } from './meeting-insight.service';
+
 @Service()
 export class BookingController {
-  constructor(private readonly bookingService: BookingService) {}
+  constructor(
+    private readonly bookingService: BookingService,
+    private readonly meetingInsightService: MeetingInsightService,
+  ) {}
 
   list = async (_req: Request, res: Response): Promise<void> => {
     const bookings = await this.bookingService.listAll();
@@ -72,5 +77,15 @@ export class BookingController {
     const dto = req.body as unknown as SwapHostDto;
     const booking = await this.bookingService.swapHost(req.params.id, dto.newStaffId);
     sendSuccess(res, sanitizeBooking(booking), 'Host swapped');
+  };
+
+  getInsights = async (req: Request, res: Response): Promise<void> => {
+    const data = await this.meetingInsightService.getInsightsForBooking(req.params.id);
+    sendSuccess(res, data, 'Meeting insights retrieved');
+  };
+
+  fetchInsights = async (req: Request, res: Response): Promise<void> => {
+    const data = await this.meetingInsightService.syncInsightsForBooking(req.params.id);
+    sendSuccess(res, data, 'Meeting insights fetched from Microsoft Graph');
   };
 }

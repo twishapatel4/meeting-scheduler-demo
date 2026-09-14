@@ -6,7 +6,14 @@ import { logger } from '@shared/utils/logger';
 import { StaffService } from '@modules/staff/staff.service';
 import { UnauthorizedError } from '@shared/errors/UnauthorizedError';
 
-const SCOPES = ['offline_access', 'Calendars.ReadWrite', 'OnlineMeetings.ReadWrite', 'User.Read'];
+const SCOPES = [
+  'offline_access',
+  'Calendars.ReadWrite',
+  'OnlineMeetings.ReadWrite',
+  'OnlineMeetingTranscript.Read.All',
+  'OnlineMeetingAiInsight.Read.All',
+  'User.Read',
+];
 const NEAR_EXPIRY_MS = 5 * 60 * 1000;
 
 // MSAL Node's serialized token cache stores each RefreshToken entry with a

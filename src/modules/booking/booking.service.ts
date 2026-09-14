@@ -100,6 +100,7 @@ export class BookingService {
     booking.subject = resolvedSubject;
     booking.msEventId = response.data.id;
     booking.joinUrl = response.data.onlineMeeting?.joinUrl ?? null;
+    booking.onlineMeetingId = response.data.onlineMeeting?.id ?? null;
     booking.status = 'Scheduled';
     return this.repo.save(booking);
   }
@@ -220,6 +221,7 @@ export class BookingService {
     booking.staff = newStaff;
     booking.msEventId = response.data.id;
     booking.joinUrl = response.data.onlineMeeting?.joinUrl ?? null;
+    booking.onlineMeetingId = response.data.onlineMeeting?.id ?? null;
     booking.status = 'Swapped';
     return this.repo.save(booking);
   }

@@ -15,5 +15,7 @@ router.patch('/:id', validateDto(RescheduleDto), asyncHandler(controller.resched
 router.post('/:id/cancel', validateDto(CancelDto), asyncHandler(controller.cancel));
 router.delete('/:id', asyncHandler(controller.deleteHard));
 router.post('/:id/swap', validateDto(SwapHostDto), asyncHandler(controller.swap));
+router.get('/:id/insights', asyncHandler(controller.getInsights));
+router.post('/:id/fetch-insights', asyncHandler(controller.fetchInsights));
 
 export { router as bookingRouter };

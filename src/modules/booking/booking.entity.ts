@@ -34,9 +34,13 @@ export class Booking extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   joinUrl: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  onlineMeetingId: string | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   cancelledAt: Date | null;
 
   @Column({ type: 'text', nullable: true })
   cancelledBy: string | null;
 }
+

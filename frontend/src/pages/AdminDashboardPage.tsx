@@ -9,6 +9,60 @@ interface Staff {
   organization: { id: string; domain: string };
 }
 
+interface TranscriptSegment {
+  startTime: string;
+  endTime: string;
+  speaker: string;
+  text: string;
+}
+
+interface MeetingTranscript {
+  id: string;
+  status: string;
+  rawContent: string | null;
+  plainText: string | null;
+  segments: TranscriptSegment[] | null;
+  errorMessage: string | null;
+  availableAt: string | null;
+}
+
+interface ActionItem {
+  id?: string;
+  title?: string;
+  text: string;
+  owner?: string | null;
+  dueDate?: string | null;
+}
+
+interface MeetingNote {
+  title?: string;
+  text?: string;
+  subpoints?: string[];
+}
+
+interface MeetingAiInsight {
+  id: string;
+  status: string;
+  summary: string | null;
+  notes: MeetingNote[] | null;
+  actionItems: ActionItem[] | null;
+  errorMessage: string | null;
+  generatedAt: string | null;
+}
+
+interface InsightsData {
+  booking: {
+    id: string;
+    subject: string;
+    status: string;
+    joinUrl: string | null;
+    onlineMeetingId: string | null;
+    staff: { id: string; email: string } | null;
+  };
+  transcript: MeetingTranscript | null;
+  aiInsight: MeetingAiInsight | null;
+}
+
 interface Booking {
   id: string;
   visitorName: string;
@@ -18,6 +72,7 @@ interface Booking {
   status: string;
   staff: Staff | null;
   joinUrl: string | null;
+  onlineMeetingId?: string | null;
   subject: string;
 }
 
@@ -53,6 +108,48 @@ export function AdminDashboardPage() {
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [isSavingReschedule, setIsSavingReschedule] = useState(false);
   const [isSavingSwap, setIsSavingSwap] = useState(false);
+
+  // Insights Modal state
+  const [insightsTarget, setInsightsTarget] = useState<Booking | null>(null);
+  const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [isFetchingFromGraph, setIsFetchingFromGraph] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
+  const openInsights = async (b: Booking) => {
+    setInsightsTarget(b);
+    setInsightsData(null);
+    setInsightsError(null);
+    setIsLoadingInsights(true);
+    try {
+      const res = await apiGet(`/api/v1/bookings/${b.id}/insights`);
+      if (res.data) {
+        setInsightsData(res.data);
+      }
+    } catch (err: any) {
+      setInsightsError(err.message || 'Failed to load insights');
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  };
+
+  const syncInsightsFromGraph = async () => {
+    if (!insightsTarget) return;
+    setIsFetchingFromGraph(true);
+    setInsightsError(null);
+    try {
+      const res = await apiPost(`/api/v1/bookings/${insightsTarget.id}/fetch-insights`, {});
+      if (res.data) {
+        setInsightsData(res.data);
+      } else if (res.error) {
+        setInsightsError(res.error.message || 'Error fetching insights from Microsoft Graph');
+      }
+    } catch (err: any) {
+      setInsightsError(err.message || 'Failed to fetch insights from Microsoft Graph');
+    } finally {
+      setIsFetchingFromGraph(false);
+    }
+  };
 
   const refresh = async () => {
     const staffRes = await apiGet('/api/v1/staff');
@@ -242,6 +339,13 @@ export function AdminDashboardPage() {
                         Swap
                       </button>
                     )}
+                    <button
+                      className="btn btn-insights"
+                      style={{ background: '#7c3aed', color: '#ffffff' }}
+                      onClick={() => openInsights(b)}
+                    >
+                      Insights & Transcript
+                    </button>
                   </>
                 )}
                 <button className="btn btn-delete" onClick={() => deleteBooking(b.id)}>
@@ -368,6 +472,248 @@ export function AdminDashboardPage() {
                 {isSavingSchedule ? 'Saving...' : 'Save'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {insightsTarget && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '750px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Meeting Insights & Transcript</h3>
+              <button
+                className="btn btn-cancel-modal"
+                style={{ padding: '4px 8px' }}
+                onClick={() => setInsightsTarget(null)}
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <p style={{ margin: '4px 0 16px', color: '#4b5563' }}>
+              <strong>Subject:</strong> {insightsTarget.subject} | <strong>Visitor:</strong>{' '}
+              {insightsTarget.visitorName}
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+              <button
+                className="btn btn-save"
+                style={{ background: '#2563eb' }}
+                disabled={isFetchingFromGraph}
+                onClick={syncInsightsFromGraph}
+              >
+                {isFetchingFromGraph ? 'Fetching from Graph...' : '↻ Fetch / Refresh from Microsoft Graph'}
+              </button>
+              {isFetchingFromGraph && <span style={{ fontSize: '13px', color: '#6b7280' }}>Contacting Microsoft Graph API...</span>}
+            </div>
+
+            {insightsError && (
+              <div
+                className="status-message"
+                style={{ background: '#fee2e2', color: '#991b1b', marginBottom: '16px' }}
+              >
+                {insightsError}
+              </div>
+            )}
+
+            {isLoadingInsights ? (
+              <p>Loading insight details...</p>
+            ) : (
+              <div>
+                {/* AI Insights Section */}
+                <div
+                  style={{
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <h4 style={{ margin: '0 0 8px', color: '#4338ca' }}>
+                    🤖 Microsoft Native AI Insights (Copilot)
+                  </h4>
+                  {insightsData?.aiInsight ? (
+                    <div>
+                      <p style={{ margin: '0 0 8px' }}>
+                        <strong>Status:</strong>{' '}
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background:
+                              insightsData.aiInsight.status === 'completed' ? '#d1fae5' : '#fef3c7',
+                            color:
+                              insightsData.aiInsight.status === 'completed' ? '#065f46' : '#92400e',
+                          }}
+                        >
+                          {insightsData.aiInsight.status.toUpperCase()}
+                        </span>
+                      </p>
+
+                      {insightsData.aiInsight.errorMessage && (
+                        <p style={{ color: '#dc2626', fontSize: '13px' }}>
+                          {insightsData.aiInsight.errorMessage}
+                        </p>
+                      )}
+
+                      {insightsData.aiInsight.summary && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <strong>Summary:</strong>
+                          <p style={{ margin: '4px 0', background: '#ffffff', padding: '8px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                            {insightsData.aiInsight.summary}
+                          </p>
+                        </div>
+                      )}
+
+                      {insightsData.aiInsight.notes && insightsData.aiInsight.notes.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <strong>Notes & Key Points:</strong>
+                          <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                            {insightsData.aiInsight.notes.map((n, idx) => (
+                              <li key={idx}>
+                                {n.title && <strong>{n.title}: </strong>}
+                                {n.text}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {insightsData.aiInsight.actionItems && insightsData.aiInsight.actionItems.length > 0 && (
+                        <div>
+                          <strong>Action Items:</strong>
+                          <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                            {insightsData.aiInsight.actionItems.map((item, idx) => (
+                              <li key={idx}>
+                                <span>{item.text}</span>
+                                {item.owner && (
+                                  <span style={{ marginLeft: '8px', color: '#2563eb', fontWeight: 500 }}>
+                                    (Owner: {item.owner})
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+                      No AI insights fetched yet. Click "Fetch / Refresh from Microsoft Graph" above.
+                    </p>
+                  )}
+                </div>
+
+                {/* Transcript Section */}
+                <div
+                  style={{
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '16px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: '0 0 8px', color: '#1f2937' }}>📝 Meeting Transcript</h4>
+                    {insightsData?.transcript?.rawContent && (
+                      <button
+                        className="btn"
+                        style={{ fontSize: '12px', padding: '2px 8px', background: '#e5e7eb', color: '#374151' }}
+                        onClick={() => {
+                          const blob = new Blob([insightsData.transcript?.rawContent || ''], {
+                            type: 'text/vtt',
+                          });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `transcript-${insightsTarget.id}.vtt`;
+                          a.click();
+                        }}
+                      >
+                        ⬇ Download .VTT
+                      </button>
+                    )}
+                  </div>
+
+                  {insightsData?.transcript ? (
+                    <div>
+                      <p style={{ margin: '0 0 8px' }}>
+                        <strong>Status:</strong>{' '}
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background:
+                              insightsData.transcript.status === 'available' ? '#d1fae5' : '#fef3c7',
+                            color:
+                              insightsData.transcript.status === 'available' ? '#065f46' : '#92400e',
+                          }}
+                        >
+                          {insightsData.transcript.status.toUpperCase()}
+                        </span>
+                      </p>
+
+                      {insightsData.transcript.errorMessage && (
+                        <p style={{ color: '#dc2626', fontSize: '13px' }}>
+                          {insightsData.transcript.errorMessage}
+                        </p>
+                      )}
+
+                      {insightsData.transcript.segments && insightsData.transcript.segments.length > 0 ? (
+                        <div
+                          style={{
+                            maxHeight: '260px',
+                            overflowY: 'auto',
+                            background: '#ffffff',
+                            padding: '12px',
+                            borderRadius: '4px',
+                            border: '1px solid #e5e7eb',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                          }}
+                        >
+                          {insightsData.transcript.segments.map((seg, idx) => (
+                            <div key={idx} style={{ fontSize: '13px' }}>
+                              <span style={{ color: '#6b7280', fontSize: '11px', marginRight: '8px' }}>
+                                [{seg.startTime} - {seg.endTime}]
+                              </span>
+                              <strong style={{ color: '#1f2937', marginRight: '6px' }}>
+                                {seg.speaker}:
+                              </strong>
+                              <span>{seg.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        insightsData.transcript.plainText && (
+                          <pre
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              fontSize: '13px',
+                              background: '#ffffff',
+                              padding: '12px',
+                              borderRadius: '4px',
+                              border: '1px solid #e5e7eb',
+                            }}
+                          >
+                            {insightsData.transcript.plainText}
+                          </pre>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+                      No transcript fetched yet. Make sure transcription was started in Microsoft Teams, then click "Fetch / Refresh from Microsoft Graph".
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
