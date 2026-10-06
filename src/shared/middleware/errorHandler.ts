@@ -23,6 +23,12 @@ export const errorHandler = (
     }
   }
 
-  logger.error('Unhandled error', { path: req.path, message: err.message, stack: err.stack });
+  const axiosErr = err as Error & { response?: { data?: unknown; status?: number } };
+  logger.error('Unhandled error', {
+    path: req.path,
+    message: err.message,
+    stack: err.stack,
+    graphResponse: axiosErr.response?.data,
+  });
   sendError(res, 'An unexpected error occurred', 500, 'INTERNAL_SERVER_ERROR');
 };

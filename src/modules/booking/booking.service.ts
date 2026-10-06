@@ -26,6 +26,31 @@ export class BookingService {
     private readonly tokenService: TokenService,
   ) {}
 
+  private async resolveOnlineMeetingFields(
+    graph: ReturnType<typeof createGraphClient>,
+    eventId: string,
+    createResponseData: any,
+  ): Promise<{ joinUrl: string | null; onlineMeetingId: string | null }> {
+    if (createResponseData.onlineMeeting?.joinUrl) {
+      return {
+        joinUrl: createResponseData.onlineMeeting.joinUrl,
+        onlineMeetingId: createResponseData.onlineMeeting.id ?? null,
+      };
+    }
+
+    logger.warn('onlineMeeting missing from event-create response — retrying with GET', { eventId });
+    try {
+      const followUp = await graph.get(`/me/events/${eventId}?$select=onlineMeeting`);
+      return {
+        joinUrl: followUp.data?.onlineMeeting?.joinUrl ?? null,
+        onlineMeetingId: followUp.data?.onlineMeeting?.id ?? null,
+      };
+    } catch (err: any) {
+      logger.warn('Follow-up GET for onlineMeeting failed', { eventId, error: err.response?.data || err.message });
+      return { joinUrl: null, onlineMeetingId: null };
+    }
+  }
+
   private get repo(): Repository<Booking> {
     return AppDataSource.getRepository(Booking);
   }
@@ -96,11 +121,13 @@ export class BookingService {
       ],
     });
 
+    const { joinUrl, onlineMeetingId } = await this.resolveOnlineMeetingFields(graph, response.data.id, response.data);
+
     booking.staff = staff;
     booking.subject = resolvedSubject;
     booking.msEventId = response.data.id;
-    booking.joinUrl = response.data.onlineMeeting?.joinUrl ?? null;
-    booking.onlineMeetingId = response.data.onlineMeeting?.id ?? null;
+    booking.joinUrl = joinUrl;
+    booking.onlineMeetingId = onlineMeetingId;
     booking.status = 'Scheduled';
     return this.repo.save(booking);
   }
@@ -218,10 +245,12 @@ export class BookingService {
       ],
     });
 
+    const { joinUrl, onlineMeetingId } = await this.resolveOnlineMeetingFields(newGraph, response.data.id, response.data);
+
     booking.staff = newStaff;
     booking.msEventId = response.data.id;
-    booking.joinUrl = response.data.onlineMeeting?.joinUrl ?? null;
-    booking.onlineMeetingId = response.data.onlineMeeting?.id ?? null;
+    booking.joinUrl = joinUrl;
+    booking.onlineMeetingId = onlineMeetingId;
     booking.status = 'Swapped';
     return this.repo.save(booking);
   }
